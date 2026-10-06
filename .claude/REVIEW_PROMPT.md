@@ -46,7 +46,7 @@ These are frequent mistakes that are easy to miss — flag them explicitly:
 - `$isEnabled`, `$isActive`, `$active` instead of `$enabled`
 - `$localizedNames` instead of `$names` (with `#[LocalizedValue]`)
 - Custom normalizer or processor added in the module (always flag as a **hard blocker**)
-- Test asserting only the identifier without checking the rest of the response fields
+- Field-by-field assertions only, or response-to-response comparisons only, when an added or changed endpoint lacks a complete-response assertion (see [CONTEXT.md → Complete response assertions](../CONTEXT.md#complete-response-assertions)); do not request a rewrite of untouched tests.
 
 ### Listing endpoints (`PaginatedList` / `CQRSPaginate`)
 
@@ -148,7 +148,8 @@ Base every check on the rules from `CONTEXT.md`.
 - [ ] No orphan DTO property (property with no matching source field → always `null`)
 
 **Integration test**
-- [ ] Extends `ApiTestCase`, `@depends` chain, asserts all fields
+- [ ] Extends `ApiTestCase`, `@depends` chain
+- [ ] Each added or changed endpoint has at least one `assertEquals` against the complete decoded response, subject to the scope and exceptions in [CONTEXT.md → Complete response assertions](../CONTEXT.md#complete-response-assertions)
 - [ ] `testInvalid*` with `assertValidationErrors`
 - [ ] `getProtectedEndpoints()` lists all URIs
 - [ ] `DatabaseDump::restoreTables()` covers all affected tables
