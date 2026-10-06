@@ -185,6 +185,12 @@ URI uses `bulk-` prefix + plural: `/tax-rules/bulk-delete`. The single public pr
 
 **File location:** `tests/Integration/ApiPlatform/{Entity}EndpointTest.php`
 
+The template illustrates a complete response with `{entityId}`, localized
+`names`, and `enabled` (defaulting to `true` on create). Replace these
+illustrative fields and values with the resource's full emitted contract,
+including its defaults and any emitted nulls, in every expected array.
+See [CONTEXT.md → Complete response assertions](../../../CONTEXT.md#complete-response-assertions).
+
 ```php
 <?php
 /**
@@ -239,22 +245,28 @@ class {Entity}EndpointTest extends ApiTestCase
     public function testAdd{Entity}(): int
     {
         $postData = [
-            // all required fields with valid values
-            // for localized fields: ['en-US' => 'value', 'fr-FR' => 'valeur']
+            'names' => ['en-US' => 'value', 'fr-FR' => 'valeur'],
         ];
 
         $response = $this->createItem('/{entities}', $postData, ['{entity}_write']);
         $this->assertArrayHasKey('{entityId}', $response);
+        $id = $response['{entityId}'];
+        $expectedData = ['{entityId}' => $id] + $postData + ['enabled' => true];
+        $this->assertEquals($expectedData, $response);
 
-        return $response['{entityId}'];
+        return $id;
     }
 
     /** @depends testAdd{Entity} */
     public function testGet{Entity}(int ${entityId}): int
     {
         $response = $this->getItem('/{entities}/' . ${entityId}, ['{entity}_read']);
-        $this->assertEquals(${entityId}, $response['{entityId}']);
-        // assert all exposed fields are present and correct
+        $expectedData = [
+            '{entityId}' => ${entityId},
+            'names' => ['en-US' => 'value', 'fr-FR' => 'valeur'],
+            'enabled' => true,
+        ];
+        $this->assertEquals($expectedData, $response);
 
         return ${entityId};
     }
@@ -263,15 +275,20 @@ class {Entity}EndpointTest extends ApiTestCase
     public function testPartialUpdate{Entity}(int ${entityId}): int
     {
         $patchData = [
-            // fields to update
+            'names' => ['en-US' => 'updated value', 'fr-FR' => 'valeur modifiée'],
+        ];
+        $expectedData = [
+            '{entityId}' => ${entityId},
+            'names' => ['en-US' => 'updated value', 'fr-FR' => 'valeur modifiée'],
+            'enabled' => true,
         ];
 
         $updated = $this->partialUpdateItem('/{entities}/' . ${entityId}, $patchData, ['{entity}_write']);
-        // assert updated fields match
+        $this->assertEquals($expectedData, $updated);
 
         // Verify the GET also reflects the changes
         $fetched = $this->getItem('/{entities}/' . ${entityId}, ['{entity}_read']);
-        // assert same fields
+        $this->assertEquals($expectedData, $fetched);
 
         return ${entityId};
     }
@@ -305,10 +322,10 @@ class {Entity}EndpointTest extends ApiTestCase
 
 ### Test rules
 
-- Tests must assert **complete response data** — all fields, not just the identifier.
+- Each added or changed endpoint must have at least one `assertEquals` against the complete decoded response, subject to the scope and exceptions in [CONTEXT.md → Complete response assertions](../../../CONTEXT.md#complete-response-assertions).
 - Chain tests using `@depends` so each test builds on the created entity.
 - Always include a `testInvalid*` test that covers validation constraints.
-- Include `'skip_null_values' => false` in assertions when using `assertEquals` on the full response array.
+- `skip_null_values` is serializer normalization context on the resource, not an assertion option; expected arrays must match emitted fields, including explicit `null` values when emitted and omitting null fields when the resource omits them.
 - Drop `LanguageResetter::resetLanguages()` from setUp/tearDown if the entity has no localized fields.
 
 ## Step 6: Write the files

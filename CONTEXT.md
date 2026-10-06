@@ -433,6 +433,8 @@ Static helpers available for additional setup (call from
   enforcement via `testProtectedEndpoints`.
 - Chain CRUD test methods with `@depends` so each step builds on the
   previous one's created entity.
+- Cover each added or changed endpoint with a
+  [complete response assertion](#complete-response-assertions).
 - Always include a `testInvalid…` method covering validation errors
   (expecting `HTTP_UNPROCESSABLE_ENTITY`) and use
   `$this->assertValidationErrors([...], $response)` to check the error
@@ -449,6 +451,70 @@ Run the suite with:
 composer setup-local-tests   # first time only
 composer run-module-tests
 ```
+
+### Complete response assertions
+
+For every endpoint that a pull request adds or changes, at least one
+integration test must assert the complete decoded response with
+`assertEquals`, not only the fields under test. The response body is the
+public API contract: renamed, missing, or unexpected fields can break
+clients, and a whole-response assertion detects all three.
+
+Build the expected array from the sent payload plus the generated
+identifier and any defaults the API adds. Account for fields that are
+transformed or omitted from the response, such as write-only passwords.
+Compare that expected array to the whole decoded response, as in
+[`CustomerGroupEndpointTest::testAddCustomerGroup`](tests/Integration/ApiPlatform/CustomerGroupEndpointTest.php):
+
+```php
+$customerGroupId = $customerGroup['customerGroupId'];
+$this->assertEquals(['customerGroupId' => $customerGroupId] + $postData, $customerGroup);
+```
+
+See [`AttributeEndpointTest::testPartialUpdateAttribute`](tests/Integration/ApiPlatform/AttributeEndpointTest.php)
+for PATCH followed by GET, and [`CustomerEndpointTest`](tests/Integration/ApiPlatform/CustomerEndpointTest.php)
+for POST responses with explicit defaults.
+
+Two patterns are insufficient on their own:
+
+- **Field-by-field assertions** pass when an unexpected field is added
+  or an unasserted field is removed:
+
+  ```php
+  $this->assertSame($customerGroupId, $response['customerGroupId']);
+  $this->assertSame($postData['showPrice'], $response['showPrice']);
+  ```
+
+- **Response-to-response comparisons** pass when both endpoints lose
+  the same field:
+
+  ```php
+  $fetched = $this->getItem('/customers/groups/' . $customerGroupId, ['customer_group_read']);
+  $this->assertEquals($created, $fetched);
+  ```
+
+Targeted assertions and response-to-response comparisons can stay when
+paired with a complete-response assertion for each endpoint they cover.
+
+The rule applies **per endpoint (HTTP method and URI), not per test
+method**. One complete-response assertion per endpoint is sufficient,
+usually in the create and read tests and in the update test when that
+endpoint is added or changed. It does not require changes to existing
+tests that the pull request does not touch.
+
+- Tests without a success payload need no complete-response assertion:
+  DELETE (`deleteItem` returns `null` on 204), `testInvalid*` validation
+  tests, and `testProtectedEndpoints` are examples.
+- For collection endpoints, compare at least one **complete item** with
+  `assertEquals`; `listItems` already checks the envelope keys. See
+  [`CustomerGroupEndpointTest::testListCustomerGroups`](tests/Integration/ApiPlatform/CustomerGroupEndpointTest.php)
+  and [`AttributeEndpointTest::testListAttributes`](tests/Integration/ApiPlatform/AttributeEndpointTest.php).
+- Expected arrays must match null handling: if the resource sets
+  `normalizationContext: ['skip_null_values' => false]`, include the
+  emitted `null`-valued fields explicitly. If the resource omits null
+  fields, omit them from the expected array too. See the nullable
+  one-way property guidance in
+  [Read and write formats must match](#read-and-write-formats-must-match).
 
 ## Canonical examples
 
